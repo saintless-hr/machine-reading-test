@@ -1171,18 +1171,7 @@
                     "info"
                 );
 
-
-                const login =
-                    await sb.auth.signInWithPassword({
-
-                        email:
-                            TEST_EMAIL,
-
-                        password:
-                            TEST_PASSWORD
-
-                    });
-
+                
 
                 if (login.error) {
                     throw login.error;
