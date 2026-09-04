@@ -55,6 +55,648 @@ button{cursor:pointer}button:disabled{opacity:.55;cursor:default}
 <div class="login-title">Očitanje stroja</div>
 <div class="login-subtitle">Prijavite se za nastavak.</div>
 <form id="loginForm">
+<div class="field"><label class="field-label" for="loginUsername">Korisničko ime</label><input id="loginUsername" type="text" autocomplete="username" autocapitalize="none" required></div>
+<div class="field"><label class="field-label" for="loginPassword">Lozinka</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+<button id="loginButton" class="login-button" type="submit">PRIJAVA</button>
+<div id="loginError" class="login-error"></div>
+</form>
+</div>
+</div>
+
+<div id="appContainer" class="app hidden">
+<header class="header">
+<div class="header-row">
+<div><div class="app-title">Očitanje stroja</div><div id="userInfo" class="user-info"></div></div>
+<button id="logoutButton" class="logout-button" type="button">Odjava</button>
+</div>
+</header>
+
+<div id="status" class="status info hidden"></div>
+
+<main class="content">
+<section class="card">
+<h2 class="card-title">Stroj</h2>
+<div class="barcode-row">
+<div class="barcode-input"><input id="barcode" type="text" placeholder="Unesite barcode" autocomplete="off" autocapitalize="characters"></div>
+<button id="scanButton" class="scan-button" type="button" title="Skeniraj barcode">▣</button>
+</div>
+<button id="findButton" class="find-button" type="button">PRONAĐI STROJ</button>
+</section>
+
+<section id="machineCard" class="card hidden">
+<h2 class="card-title">Podaci o stroju</h2>
+<div id="machineName" class="machine-name"></div>
+<div id="machineType" class="machine-type"></div>
+<div class="info-row"><span class="info-label">Kupac</span><span id="customerName" class="info-value"></span></div>
+<div class="info-row"><span class="info-label">Lokacija</span><span id="locationName" class="info-value"></span></div>
+<div class="info-row"><span class="info-label">Cijena</span><span id="unitPrice" class="info-value"></span></div>
+<div class="info-row"><span class="info-label">Udio stroja</span><span id="machineRatio" class="info-value"></span></div>
+<div class="info-row"><span class="info-label">Zadnje očitanje</span><span id="lastReadingDate" class="info-value">—</span></div>
+<div class="info-row"><span class="info-label">Stanje brojača</span><span id="lastReadingCounter" class="info-value">—</span></div>
+</section>
+
+<section id="dateCard" class="card hidden">
+<h2 class="card-title">Datum i vrijeme</h2>
+<div class="field"><label class="field-label" for="readingDateTime">Vrijeme očitanja</label><input id="readingDateTime" type="datetime-local"></div>
+</section>
+
+<section id="readingCard" class="card hidden">
+<h2 class="card-title">Očitanje</h2>
+<div id="counterSection" class="field">
+<label class="field-label" for="counter">Stanje brojača</label>
+<input id="counter" class="large-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+<div class="field-hint">Unesite trenutno stanje brojača.</div>
+</div>
+<div class="field">
+<label class="field-label" for="cashAmount">Gotovina / prihod (€)</label>
+<input id="cashAmount" class="cash-input" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+</div>
+<div id="baselineSection" class="field">
+<div class="checkbox-row"><input id="isBaseline" type="checkbox"><label for="isBaseline">Početno očitanje (baseline)</label></div>
+</div>
+<div class="field">
+<div id="calculatedLocationRevenue" class="calculated-location">Izračun za lokaciju: —</div>
+<label class="field-label" for="locationRevenuePaid">Stvarno isplaćeno lokaciji (€)</label>
+<input id="locationRevenuePaid" class="cash-input" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+<div class="field-hint">Iznos koji je stvarno isplaćen lokaciji.</div>
+</div>
+</section>
+
+<section id="photoCard" class="card hidden">
+<h2 class="card-title">Fotografija</h2>
+<button id="photoButton" class="photo-button" type="button">Fotografiraj brojač</button>
+<input id="photoInput" type="file" accept="image/*" capture="environment">
+<img id="photoPreview" class="photo-preview" alt="Fotografija brojača">
+</section>
+
+<section id="saveCard" class="card hidden">
+<button id="saveButton" class="save-button" type="button">SPREMI OČITANJE</button>
+<button id="newReadingButton" class="new-button" type="button">NOVO OČITANJE</button>
+</section>
+
+<section id="resultCard" class="card hidden">
+<div class="result-success"><div class="result-icon">✓</div><div class="result-title">Očitanje spremljeno</div></div>
+<div id="resultContent"></div>
+<button id="resultNewButton" class="new-button" type="button">NOVO OČITANJE</button>
+</section>
+</main>
+</div>
+
+<div id="scannerOverlay" class="scanner-overlay">
+<div class="scanner-header"><div class="scanner-title">Skeniranje barcoda</div><button id="scannerClose" class="scanner-close" type="button">Zatvori</button></div>
+<video id="scannerVideo" playsinline muted></video>
+<div id="scannerMessage" class="scanner-message">Usmjerite kameru prema barcodu.</div>
+</div>
+
+<script>
+const SUPABASE_URL="https://mqfqtqwkcjahafygjouc.supabase.co";
+const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZnF0cXdrY2phaGFmeWdqb3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNjg1MDcsImV4cCI6MjEwMzk0NDUwN30.Pc7J3Sv5A26IlzDbu3DbVteMKQ2j2wiwKNWWozoCpvk";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+let currentMachine=null,selectedPhoto=null,scannerStream=null,scannerRunning=false,previousCounter=null;
+
+const loginScreen=document.getElementById("loginScreen");
+const loginForm=document.getElementById("loginForm");
+const loginUsername=document.getElementById("loginUsername");
+const loginPassword=document.getElementById("loginPassword");
+const loginButton=document.getElementById("loginButton");
+const loginError=document.getElementById("loginError");
+const appContainer=document.getElementById("appContainer");
+const statusEl=document.getElementById("status");
+const barcodeInput=document.getElementById("barcode");
+const dateTimeInput=document.getElementById("readingDateTime");
+const machineCard=document.getElementById("machineCard");
+const dateCard=document.getElementById("dateCard");
+const readingCard=document.getElementById("readingCard");
+const photoCard=document.getElementById("photoCard");
+const saveCard=document.getElementById("saveCard");
+const resultCard=document.getElementById("resultCard");
+const calculatedLocationRevenue=document.getElementById("calculatedLocationRevenue");
+
+function showStatus(message,type="info"){
+    statusEl.textContent=message;
+    statusEl.className="status "+type;
+    statusEl.classList.remove("hidden");
+}
+function hideStatus(){statusEl.classList.add("hidden");}
+
+function showLoginScreen(message=""){
+    appContainer.classList.add("hidden");
+    loginScreen.classList.remove("hidden");
+    loginError.textContent=message;
+    loginError.style.display=message?"block":"none";
+}
+async function showApplication(session){
+    loginScreen.classList.add("hidden");
+    appContainer.classList.remove("hidden");
+    try{
+        const {data,error}=await sb
+            .from("user_profiles")
+            .select("username")
+            .eq("id",session.user.id)
+            .single();
+
+        if(error)throw error;
+        document.getElementById("userInfo").textContent=data?.username||"";
+    }catch(error){
+        console.error("Greška kod dohvaćanja korisničkog imena:",error);
+        document.getElementById("userInfo").textContent="";
+    }
+    setCurrentDateTime();
+    newReading(false);
+    barcodeInput.focus();
+    showStatus("Prijavljeni ste.","success");
+}
+async function initializeApplication(){
+    try{
+        const {data,error}=await sb.auth.getSession();
+        if(error)throw error;
+        if(data.session)await showApplication(data.session);
+        else showLoginScreen();
+    }catch(error){
+        console.error(error);
+        showLoginScreen("Greška kod provjere prijave: "+error.message);
+    }
+}
+async function handleLogin(event){
+    event.preventDefault();
+
+    const username=loginUsername.value.trim();
+    const password=loginPassword.value;
+
+    if(!username||!password){
+        loginError.textContent="Unesite korisničko ime i lozinku.";
+        loginError.style.display="block";
+        return;
+    }
+
+    loginButton.disabled=true;
+    loginButton.textContent="PRIJAVA...";
+    loginError.style.display="none";
+
+    try{
+        // Pronađi interni e-mail prema korisničkom imenu.
+        const {data:loginEmail,error:emailError}=await sb.rpc(
+            "get_login_email",
+            {p_username:username}
+        );
+
+        if(emailError)throw emailError;
+        if(!loginEmail)throw new Error("Korisnik ne postoji.");
+
+        // Supabase Auth i dalje interno koristi e-mail + lozinku.
+        const {data,error}=await sb.auth.signInWithPassword({
+            email:loginEmail,
+            password:password
+        });
+
+        if(error)throw error;
+        if(!data.session)throw new Error("Prijava nije uspjela.");
+
+        loginPassword.value="";
+        await showApplication(data.session);
+    }catch(error){
+        console.error(error);
+        loginError.textContent="Greška kod prijave: "+error.message;
+        loginError.style.display="block";
+    }finally{
+        loginButton.disabled=false;
+        loginButton.textContent="PRIJAVA";
+    }
+}
+async function logout(){
+    stopScanner();
+    try{
+        const {error}=await sb.auth.signOut();
+        if(error)throw error;
+    }catch(error){console.error(error);}
+    currentMachine=null;
+    selectedPhoto=null;
+    hideReadingSections();
+    showLoginScreen();
+    loginPassword.value="";
+    loginUsername.focus();
+}
+sb.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT"){stopScanner();showLoginScreen();}});
+
+function setCurrentDateTime(){
+    const now=new Date();
+    const y=now.getFullYear();
+    const m=String(now.getMonth()+1).padStart(2,"0");
+    const d=String(now.getDate()).padStart(2,"0");
+    const h=String(now.getHours()).padStart(2,"0");
+    const min=String(now.getMinutes()).padStart(2,"0");
+    dateTimeInput.value=`${y}-${m}-${d}T${h}:${min}`;
+}
+function formatEuro(value){
+    if(value===null||value===undefined||value==="")return "-";
+    const n=Number(value);
+    if(Number.isNaN(n))return "-";
+    return n.toLocaleString("hr-HR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
+}
+function formatNumber(value){
+    if(value===null||value===undefined||value==="")return "-";
+    const n=Number(value);
+    if(Number.isNaN(n))return "-";
+    return n.toLocaleString("hr-HR");
+}
+
+async function loadPreviousCounter(){
+    previousCounter=null;
+    if(!currentMachine||!currentMachine.has_counter)return;
+    const selectedDateTime=dateTimeInput.value;
+    if(!selectedDateTime)return;
+
+    try{
+        const isoDateTime=new Date(selectedDateTime).toISOString();
+        const {data,error}=await sb
+            .from("readings")
+            .select("counter,date_time,id")
+            .eq("machine_id",currentMachine.machine_id)
+            .lt("date_time",isoDateTime)
+            .order("date_time",{ascending:false})
+            .order("id",{ascending:false})
+            .limit(1);
+
+        if(error)throw error;
+        if(data&&data.length>0&&data[0].counter!==null){
+            previousCounter=Number(data[0].counter);
+        }
+    }catch(error){
+        console.error("Greška kod dohvaćanja prethodnog brojača:",error);
+        previousCounter=null;
+    }
+}
+
+function updateCalculatedLocationRevenue(){
+    if(!currentMachine){
+        calculatedLocationRevenue.textContent="Izračun za lokaciju: —";
+        return;
+    }
+
+    let amount=null;
+
+    if(!currentMachine.has_counter){
+        const cashValue=document.getElementById("cashAmount").value;
+        if(cashValue!==""){
+            const cash=Number(cashValue);
+            if(!Number.isNaN(cash)&&cash>=0){
+                amount=cash*(100-Number(currentMachine.machine_ratio))/100;
+            }
+        }
+    }else{
+        const counterValue=document.getElementById("counter").value;
+        const baseline=document.getElementById("isBaseline").checked;
+
+        if(baseline){
+            amount=0;
+        }else if(counterValue!==""&&previousCounter!==null){
+            const counter=Number(counterValue);
+            if(Number.isInteger(counter)&&counter>=0&&counter>=previousCounter){
+                amount=(counter-previousCounter)*Number(currentMachine.unit_price)
+                    *(100-Number(currentMachine.machine_ratio))/100;
+            }else if(Number.isInteger(counter)&&counter>=0){
+                amount=0;
+            }
+        }else if(counterValue!==""&&previousCounter===null){
+            amount=0;
+        }
+    }
+
+    if(amount===null||Number.isNaN(amount)){
+        calculatedLocationRevenue.textContent="Izračun za lokaciju: —";
+    }else{
+        calculatedLocationRevenue.textContent=
+            "Izračun za lokaciju: "+formatEuro(amount);
+    }
+}
+
+async function loadLastReading(){
+    document.getElementById("lastReadingDate").textContent="Učitavanje...";
+    document.getElementById("lastReadingCounter").textContent="Učitavanje...";
+
+    if(!currentMachine){
+        document.getElementById("lastReadingDate").textContent="—";
+        document.getElementById("lastReadingCounter").textContent="—";
+        return;
+    }
+
+    try{
+        const {data,error}=await sb
+            .from("readings")
+            .select("date_time,counter,id")
+            .eq("machine_id",currentMachine.machine_id)
+            .order("date_time",{ascending:false})
+            .order("id",{ascending:false})
+            .limit(1);
+
+        if(error)throw error;
+
+        if(!data||data.length===0){
+            document.getElementById("lastReadingDate").textContent="Nema očitanja";
+            document.getElementById("lastReadingCounter").textContent=
+                currentMachine.has_counter?"Nema očitanja":"—";
+            return;
+        }
+
+        const last=data[0];
+        const dt=new Date(last.date_time);
+
+        document.getElementById("lastReadingDate").textContent=
+            dt.toLocaleString("hr-HR",{
+                day:"2-digit",
+                month:"2-digit",
+                year:"numeric",
+                hour:"2-digit",
+                minute:"2-digit"
+            });
+
+        document.getElementById("lastReadingCounter").textContent=
+            currentMachine.has_counter && last.counter!==null
+                ? formatNumber(last.counter)
+                : "—";
+    }catch(error){
+        console.error("Greška kod dohvaćanja zadnjeg očitanja:",error);
+        document.getElementById("lastReadingDate").textContent="Greška";
+        document.getElementById("lastReadingCounter").textContent="Greška";
+    }
+}
+
+async function findMachine(){
+    const barcode=barcodeInput.value.trim();
+    if(!barcode){showStatus("Unesite barcode.","error");barcodeInput.focus();return;}
+    if(!dateTimeInput.value){showStatus("Unesite datum i vrijeme.","error");return;}
+    const dateOnly=dateTimeInput.value.substring(0,10);
+    showStatus("Tražim stroj...","info");
+    try{
+        const {data,error}=await sb.rpc("get_machine_by_barcode",{p_machine_barcode:barcode,p_date:dateOnly});
+        if(error)throw error;
+        if(!data||data.length===0)throw new Error("Za uneseni barcode i datum nije pronađen aktivan ugovor/lokacija.");
+        currentMachine=data[0];
+        displayMachine();
+        showStatus("Stroj pronađen.","success");
+    }catch(error){
+        console.error(error);
+        currentMachine=null;
+        hideReadingSections();
+        showStatus("Greška: "+error.message,"error");
+    }
+}
+function displayMachine(){
+    document.getElementById("machineName").textContent=currentMachine.machine_name;
+    document.getElementById("machineType").textContent=currentMachine.has_counter?"STROJ S BROJAČEM":"STROJ BEZ BROJAČA";
+    document.getElementById("customerName").textContent=currentMachine.customer_name;
+    document.getElementById("locationName").textContent=currentMachine.location_name;
+    document.getElementById("unitPrice").textContent=formatEuro(currentMachine.unit_price);
+    document.getElementById("machineRatio").textContent=currentMachine.machine_ratio+" %";
+    machineCard.classList.remove("hidden");dateCard.classList.remove("hidden");readingCard.classList.remove("hidden");photoCard.classList.remove("hidden");saveCard.classList.remove("hidden");resultCard.classList.add("hidden");
+    calculatedLocationRevenue.textContent="Izračun za lokaciju: —";
+    loadLastReading();
+    loadPreviousCounter().then(updateCalculatedLocationRevenue);
+    if(currentMachine.has_counter){
+        document.getElementById("counterSection").classList.remove("hidden");
+        document.getElementById("baselineSection").classList.remove("hidden");
+        document.getElementById("counter").focus();
+    }else{
+        document.getElementById("counterSection").classList.add("hidden");
+        document.getElementById("baselineSection").classList.add("hidden");
+        document.getElementById("counter").value="";
+        document.getElementById("isBaseline").checked=false;
+        document.getElementById("cashAmount").focus();
+    }
+}
+
+async function saveReading(){
+    if(!currentMachine){showStatus("Najprije pronađite stroj.","error");return;}
+    const dateTime=dateTimeInput.value;
+    const cashValue=document.getElementById("cashAmount").value;
+    const locationPaidValue=document.getElementById("locationRevenuePaid").value;
+    const baseline=document.getElementById("isBaseline").checked;
+    if(!dateTime){showStatus("Unesite datum i vrijeme.","error");return;}
+    if(cashValue===""||Number(cashValue)<0){showStatus("Unesite ispravan iznos gotovine/prihoda.","error");document.getElementById("cashAmount").focus();return;}
+    const cashAmount=Number(cashValue);
+    let counter=null;
+    if(currentMachine.has_counter){
+        const counterValue=document.getElementById("counter").value;
+        if(counterValue===""||Number(counterValue)<0||!Number.isInteger(Number(counterValue))){
+            showStatus("Unesite ispravno stanje brojača.","error");
+            document.getElementById("counter").focus();
+            return;
+        }
+        counter=Number(counterValue);
+    }
+    let locationRevenuePaid=null;
+    if(locationPaidValue!==""){
+        if(Number(locationPaidValue)<0){showStatus("Isplaćeni iznos ne može biti negativan.","error");return;}
+        locationRevenuePaid=Number(locationPaidValue);
+    }
+    const isoDateTime=new Date(dateTime).toISOString();
+    const saveButton=document.getElementById("saveButton");
+    saveButton.disabled=true;saveButton.textContent="SPREMANJE...";
+    showStatus("Spremam očitanje...","info");
+    try{
+        const {data,error}=await sb.rpc("record_reading",{
+            p_machine_barcode:barcodeInput.value.trim(),
+            p_date_time:isoDateTime,
+            p_counter:counter,
+            p_is_baseline:baseline,
+            p_photo_path:null,
+            p_cash_amount:cashAmount,
+            p_location_revenue_paid:locationRevenuePaid
+        });
+        if(error)throw error;
+        if(!data||data.length===0)throw new Error("RPC nije vratio rezultat.");
+        displayResult(data[0]);
+        if(data[0].location_revenue!==null&&data[0].location_revenue!==undefined){
+            calculatedLocationRevenue.textContent=
+                "Izračun za lokaciju: "+formatEuro(data[0].location_revenue);
+        }
+        showStatus("Očitanje je uspješno spremljeno.","success");
+    }catch(error){
+        console.error(error);
+        showStatus("Greška kod spremanja: "+error.message,"error");
+    }finally{
+        saveButton.disabled=false;saveButton.textContent="SPREMI OČITANJE";
+    }
+}
+function displayResult(result){
+    let html="";
+    if(result.has_counter){
+        html+=`<div class="result-row"><strong>Prethodni brojač</strong><span>${formatNumber(result.previous_counter)}</span></div>`;
+        html+=`<div class="result-row"><strong>Brojač</strong><span>${formatNumber(result.counter)}</span></div>`;
+        html+=`<div class="result-row result-highlight"><strong>Jedinice</strong><span>${formatNumber(result.units)}</span></div>`;
+    }
+    html+=`<div class="result-row"><strong>Prihod</strong><span>${formatEuro(result.revenue)}</span></div>`;
+    html+=`<div class="result-row"><strong>Udio stroja</strong><span>${formatEuro(result.machine_revenue)}</span></div>`;
+    html+=`<div class="result-row"><strong>Udio lokacije</strong><span>${formatEuro(result.location_revenue)}</span></div>`;
+    html+=`<div class="result-row"><strong>Gotovina</strong><span>${formatEuro(result.cash_amount)}</span></div>`;
+    html+=`<div class="result-row"><strong>Razlika gotovine</strong><span>${formatEuro(result.cash_difference)}</span></div>`;
+    html+=`<div class="result-row"><strong>Isplaćeno lokaciji</strong><span>${formatEuro(result.location_revenue_paid)}</span></div>`;
+    html+=`<div class="result-row"><strong>ID očitanja</strong><span>${result.id}</span></div>`;
+    document.getElementById("resultContent").innerHTML=html;
+    resultCard.classList.remove("hidden");saveCard.classList.add("hidden");
+    resultCard.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function hideReadingSections(){
+    machineCard.classList.add("hidden");dateCard.classList.add("hidden");readingCard.classList.add("hidden");photoCard.classList.add("hidden");saveCard.classList.add("hidden");resultCard.classList.add("hidden");
+}
+function newReading(showMessage=true){
+    currentMachine=null;selectedPhoto=null;previousCounter=null;
+    barcodeInput.value="";
+    document.getElementById("counter").value="";
+    document.getElementById("cashAmount").value="";
+    document.getElementById("locationRevenuePaid").value="";
+    document.getElementById("isBaseline").checked=false;
+    document.getElementById("photoInput").value="";
+    const preview=document.getElementById("photoPreview");
+    preview.src="";preview.style.display="none";
+    hideReadingSections();
+    document.getElementById("lastReadingDate").textContent="—";
+    document.getElementById("lastReadingCounter").textContent="—";
+    setCurrentDateTime();
+    if(showMessage)showStatus("Spremno za novo očitanje.","info");
+    barcodeInput.focus();
+}
+function takePhoto(){document.getElementById("photoInput").click();}
+function handlePhoto(event){
+    const file=event.target.files[0];
+    if(!file)return;
+    selectedPhoto=file;
+    const preview=document.getElementById("photoPreview");
+    preview.src=URL.createObjectURL(file);
+    preview.style.display="block";
+    showStatus("Fotografija je odabrana. Trenutno se ne sprema na server.","success");
+}
+
+async function startScanner(){
+    if(!("BarcodeDetector" in window)){showStatus("Ovaj preglednik ne podržava ugrađeno skeniranje barcoda. Unesite barcode ručno.","error");barcodeInput.focus();return;}
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){showStatus("Kamera nije dostupna u ovom pregledniku.","error");return;}
+    try{
+        const formats=await BarcodeDetector.getSupportedFormats();
+        const preferred=["code_128","code_39","ean_13","ean_8","upc_a","upc_e","itf","codabar"];
+        const supported=preferred.filter(f=>formats.includes(f));
+        if(!supported.length)throw new Error("Nema podržanih formata barcoda.");
+        const detector=new BarcodeDetector({formats:supported});
+        const video=document.getElementById("scannerVideo");
+        document.getElementById("scannerOverlay").style.display="block";
+        scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+        video.srcObject=scannerStream;
+        await video.play();
+        scannerRunning=true;
+        document.getElementById("scannerMessage").textContent="Usmjerite kameru prema barcodu.";
+        scanLoop(detector);
+    }catch(error){
+        console.error(error);stopScanner();
+        showStatus("Nije moguće pokrenuti kameru: "+error.message,"error");
+    }
+}
+async function scanLoop(detector){
+    if(!scannerRunning)return;
+    const video=document.getElementById("scannerVideo");
+    try{
+        if(video.readyState>=2){
+            const barcodes=await detector.detect(video);
+            if(barcodes&&barcodes.length){
+                const value=barcodes[0].rawValue;
+                if(value){
+                    barcodeInput.value=value;stopScanner();
+                    showStatus("Barcode očitan: "+value,"success");
+                    await findMachine();
+                    return;
+                }
+            }
+        }
+    }catch(error){console.error("Scanner error:",error);}
+    requestAnimationFrame(()=>scanLoop(detector));
+}
+function stopScanner(){
+    scannerRunning=false;
+    if(scannerStream){scannerStream.getTracks().forEach(track=>track.stop());scannerStream=null;}
+    document.getElementById("scannerVideo").srcObject=null;
+    document.getElementById("scannerOverlay").style.display="none";
+}
+
+loginForm.addEventListener("submit",handleLogin);
+document.getElementById("findButton").addEventListener("click",findMachine);
+document.getElementById("scanButton").addEventListener("click",startScanner);
+document.getElementById("scannerClose").addEventListener("click",stopScanner);
+document.getElementById("saveButton").addEventListener("click",saveReading);
+document.getElementById("newReadingButton").addEventListener("click",()=>newReading(true));
+document.getElementById("resultNewButton").addEventListener("click",()=>newReading(true));
+document.getElementById("photoButton").addEventListener("click",takePhoto);
+document.getElementById("photoInput").addEventListener("change",handlePhoto);
+document.getElementById("logoutButton").addEventListener("click",logout);
+barcodeInput.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();findMachine();}});
+dateTimeInput.addEventListener("change",async()=>{
+    if(currentMachine){
+        await loadPreviousCounter();
+        updateCalculatedLocationRevenue();
+    }
+});
+document.getElementById("counter").addEventListener("input",updateCalculatedLocationRevenue);
+document.getElementById("cashAmount").addEventListener("input",updateCalculatedLocationRevenue);
+document.getElementById("isBaseline").addEventListener("change",updateCalculatedLocationRevenue);
+document.addEventListener("DOMContentLoaded",initializeApplication);
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1769aa">
+<title>Očitanje stroja</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;min-height:100%;font-family:Arial,sans-serif;background:#f2f4f7;color:#222}
+body{padding-bottom:30px}
+.app{width:100%;max-width:600px;margin:0 auto}
+.header{background:#1769aa;color:#fff;padding:15px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.header-row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.app-title{font-size:20px;font-weight:bold}.user-info{font-size:12px;opacity:.9;margin-top:3px}
+.logout-button{background:transparent;border:1px solid rgba(255,255,255,.7);color:#fff;padding:7px 10px;border-radius:5px;font-size:12px}
+.status{margin:12px;padding:11px 13px;border-radius:7px;font-size:14px}.status.info{background:#e8f1fb;color:#174a78}.status.success{background:#e5f5eb;color:#176b35}.status.error{background:#fdeaea;color:#a32020}
+.content{padding:0 12px}.card{background:#fff;border-radius:10px;margin-bottom:12px;padding:16px;box-shadow:0 1px 5px rgba(0,0,0,.08)}
+.card-title{font-size:17px;font-weight:bold;margin:0 0 14px}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=datetime-local]{width:100%;height:50px;padding:0 13px;border:1px solid #b9c0c7;border-radius:7px;font-size:17px;background:#fff}
+input:focus{outline:none;border-color:#1769aa;box-shadow:0 0 0 2px rgba(23,105,170,.12)}
+button{cursor:pointer}button:disabled{opacity:.55;cursor:default}
+.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{width:100%;max-width:420px;background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.login-title{font-size:25px;font-weight:bold;margin-bottom:6px;color:#1769aa}.login-subtitle{color:#666;font-size:14px;margin-bottom:22px}
+.field{margin-bottom:16px}.field-label{display:block;font-weight:bold;font-size:14px;margin-bottom:6px}
+.login-button,.find-button,.save-button,.new-button,.photo-button{width:100%;border-radius:7px;font-size:16px;font-weight:bold}
+.login-button{height:52px;border:0;background:#1769aa;color:#fff;margin-top:4px}
+.login-error{margin-top:12px;color:#a32020;font-size:14px;display:none}
+.barcode-row{display:flex;gap:8px}.barcode-input{flex:1;min-width:0}
+.scan-button{width:58px;height:50px;flex-shrink:0;border:0;border-radius:7px;background:#1769aa;color:#fff;font-size:24px}
+.find-button{height:50px;margin-top:10px;border:0;background:#1769aa;color:#fff}
+.machine-name{font-size:20px;font-weight:bold;margin-bottom:12px}.machine-type{display:inline-block;padding:5px 9px;border-radius:5px;background:#e9ecef;font-size:12px;margin-bottom:12px}
+.info-row,.result-row{display:flex;justify-content:space-between;gap:15px;padding:8px 0;border-bottom:1px solid #eee;font-size:14px}
+.info-row:last-child,.result-row:last-child{border-bottom:0}.info-label,.result-row strong{color:#666}.info-value,.result-row span{font-weight:bold;text-align:right}
+.large-input{height:60px!important;font-size:25px!important;font-weight:bold;text-align:right}.cash-input{height:55px!important;font-size:22px!important;font-weight:bold;text-align:right}
+.field-hint{font-size:12px;color:#777;margin-top:5px}
+.calculated-location{font-size:16px;font-weight:bold;margin:0 0 8px;color:#1769aa}
+.checkbox-row{display:flex;align-items:center;gap:10px;padding:10px 0}.checkbox-row input{width:22px;height:22px}.checkbox-row label{font-size:15px}
+.photo-button{height:52px;border:1px solid #1769aa;background:#fff;color:#1769aa}#photoInput{display:none}.photo-preview{margin-top:10px;width:100%;border-radius:7px;display:none}
+.save-button{height:60px;border:0;background:#198754;color:#fff;font-size:19px}.new-button{height:50px;margin-top:10px;border:1px solid #6c757d;background:#fff;color:#495057}
+.result-success{text-align:center;padding:5px 0 15px}.result-icon{font-size:42px;margin-bottom:5px}.result-title{font-size:20px;font-weight:bold;color:#176b35}.result-highlight{font-size:17px}
+.scanner-overlay{position:fixed;inset:0;background:#000;z-index:1000;display:none}.scanner-header{height:60px;background:#111;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 15px}
+.scanner-title{font-size:17px;font-weight:bold}.scanner-close{background:#333;border:0;color:#fff;border-radius:5px;padding:8px 12px;font-size:14px}
+#scannerVideo{width:100%;height:calc(100% - 60px);object-fit:cover}.scanner-message{position:absolute;top:90px;left:20px;right:20px;text-align:center;color:#fff;background:rgba(0,0,0,.55);padding:10px;border-radius:6px}
+.hidden{display:none!important}
+@media(min-width:601px){body{padding-top:20px}.header{position:relative;border-radius:10px 10px 0 0}}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen">
+<div class="login-card">
+<div class="login-title">Očitanje stroja</div>
+<div class="login-subtitle">Prijavite se za nastavak.</div>
+<form id="loginForm">
 <div class="field"><label class="field-label" for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="username" required></div>
 <div class="field"><label class="field-label" for="loginPassword">Lozinka</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
 <button id="loginButton" class="login-button" type="submit">PRIJAVA</button>
